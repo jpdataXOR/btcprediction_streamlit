@@ -59,23 +59,20 @@ def plot_with_predictions(data, matches, current_pattern_length, recent_price, l
     ax.plot(data['Close'], label='Bitcoin Price', color='black', linewidth=1)
     
     # Calculate and plot future price levels for each match
-    colors = ['red', 'blue', 'green', 'purple', 'orange']
     for idx, match in matches.iterrows():
         future_prices = calculate_future_prices(recent_price, match['future_changes'])
         
-        for i, price in enumerate(future_prices):
-            color = colors[idx % len(colors)]
+        for price in future_prices:
             ax.axhline(y=price, 
-                      color=color, 
-                      linestyle='--', 
-                      alpha=0.5,
-                      label=f'Match {idx+1} Day {i+1}' if i == 0 else "")
+                      color='grey', 
+                      linestyle='-', 
+                      linewidth=0.5, 
+                      alpha=0.3)
     
     ax.set_title('Bitcoin Price with Pattern-Based Predictions', pad=20)
     ax.set_xlabel('Date')
     ax.set_ylabel('Price (USD)')
     ax.grid(True, linestyle='--', alpha=0.3)
-    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     
     return fig
@@ -98,20 +95,13 @@ def main():
     tab1, tab2 = st.tabs(["Chart View", "Detailed Data"])
     
     with tab1:
-        # Display current pattern
-        st.markdown(f"**Current Pattern:** `{'→'.join(current_pattern)}`  (U = Up, D = Down)")
+        # Display current pattern only
+        st.markdown(f"**Current Pattern:** `{'→'.join(current_pattern)}`")
         
-        # Find matches and display chart
+        # Find matches and display chart only
         matches = find_matching_patterns(data, current_pattern, lookforward)
         
         if not matches.empty:
-            st.markdown(f"**Found {len(matches)} matching patterns**")
-            
-            # Show patterns only
-            for idx, match in matches.iterrows():
-                st.markdown(f"Match {idx+1}: Future moves: `{'→'.join(match['future_pattern'])}`")
-            
-            # Plot with predictions
             fig = plot_with_predictions(data.tail(200), matches, pattern_length, 
                                       recent_data['Close'].iloc[-1], lookforward)
             st.pyplot(fig)
