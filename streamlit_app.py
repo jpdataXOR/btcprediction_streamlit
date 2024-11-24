@@ -1,4 +1,4 @@
-import streamlit as st
+]import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -55,16 +55,18 @@ def calculate_future_prices(recent_price, future_changes):
 def plot_with_predictions(data, matches, current_pattern_length, recent_price, lookforward=5):
     fig, ax = plt.subplots(figsize=(15, 8))
     
-    # Plot main price line
-    ax.plot(data['Close'], label='Bitcoin Price', color='black', linewidth=1)
+    # Plot main price line in thick black
+    ax.plot(data['Close'], label='Bitcoin Price', color='black', linewidth=2)
     
     # Calculate and plot future price levels for each match
     for idx, match in matches.iterrows():
         future_prices = calculate_future_prices(recent_price, match['future_changes'])
         
         for price in future_prices:
+            # Green for prices above current, red for below
+            color = 'green' if price > recent_price else 'red'
             ax.axhline(y=price, 
-                      color='grey', 
+                      color=color, 
                       linestyle='-', 
                       linewidth=0.5, 
                       alpha=0.3)
