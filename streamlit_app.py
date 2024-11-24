@@ -69,7 +69,7 @@ def plot_with_predictions(data, matches, current_pattern_length, recent_price, l
         for price in future_prices:
             # All prediction lines in light blue
             ax.axhline(y=price, 
-                      color='blue', 
+                      color='lightblue', 
                       linestyle='-', 
                       linewidth=0.5, 
                       alpha=0.3)
@@ -83,7 +83,7 @@ def plot_with_predictions(data, matches, current_pattern_length, recent_price, l
     
     return fig
 
-
+    
 def main():
     st.title("Bitcoin Pattern Matcher")
     
