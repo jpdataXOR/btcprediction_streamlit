@@ -4,78 +4,135 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Function to fetch Bitcoin data
 def fetch_bitcoin_data(interval):
     btc = yf.Ticker("BTC-USD")
-    data = btc.history(period="max", interval=interval)
+    
+    if interval == "1h":
+        period = "730d"
+    elif interval == "1d":
+        period = "max"
+    
+    data = btc.history(period=period, interval=interval)
+    data.index = data.index.tz_localize(None)
     data['Change'] = data['Close'].pct_change()
     return data
 
-# Function to convert percentage changes to a pattern of 'U' and 'D'
 def convert_to_pattern(series):
-    pattern = ''.join(['U' if x > 0 else 'D' for x in series])
-    return pattern
+    return ''.join(['U' if x > 0 else 'D' for x in series])
 
-# Function to find matching patterns in historical data
-def find_matching_patterns(data, current_pattern):
+def find_matching_patterns(data, current_pattern, lookforward=5):
     pattern_length = len(current_pattern)
-    data['Pattern'] = np.nan
-
-    for i in range(pattern_length, len(data)):
-        pattern = convert_to_pattern(data['Change'].iloc[i-pattern_length:i])
-        if pattern == current_pattern:
-            data.loc[data.index[i], 'Pattern'] = pattern
-
-    matches = data.dropna(subset=['Pattern'])
+    matches = pd.DataFrame()
+    
+    for i in range(pattern_length, len(data) - lookforward):
+        window_pattern = convert_to_pattern(data['Close'].pct_change().iloc[i-pattern_length:i])
+        
+        if window_pattern == current_pattern:
+            future_changes = data['Close'].iloc[i:i+lookforward].pct_change()
+            future_pattern = convert_to_pattern(future_changes)
+            
+            match_info = {
+                'match_date': data.index[i-1],
+                'pattern': window_pattern,
+                'future_pattern': future_pattern,
+                'base_price': data['Close'].iloc[i-1],
+                'future_changes': [x for x in future_changes.iloc[1:]]
+            }
+            matches = pd.concat([matches, pd.DataFrame([match_info])], ignore_index=True)
+    
     return matches
 
-# Function to plot the chart in black and white with horizontal overlays
-def plot_with_overlays(data, matches, current_pattern_length):
-    fig, ax = plt.subplots(figsize=(14, 7))
-    ax.plot(data['Close'], label='Current Price', color='black')
+def calculate_future_prices(recent_price, future_changes):
+    future_prices = []
+    current_price = recent_price
+    
+    for change in future_changes:
+        current_price = current_price * (1 + change)
+        future_prices.append(current_price)
+    
+    return future_prices
 
-    # Ensure there are enough data points before attempting to plot horizontal lines
-    for match_date in matches.index:
-        if match_date in data.index:  # Ensure the match date is within the range of data
-            future_price = data['Close'].loc[match_date]
-            ax.axhline(y=future_price, linestyle='--', color='gray', linewidth=0.8)
-
-    ax.set_title('Bitcoin Price Chart with Matching Patterns (Horizontal Lines)')
+def plot_with_predictions(data, matches, current_pattern_length, recent_price, lookforward=5):
+    fig, ax = plt.subplots(figsize=(15, 8))
+    
+    # Plot main price line
+    ax.plot(data['Close'], label='Bitcoin Price', color='black', linewidth=1)
+    
+    # Calculate and plot future price levels for each match
+    colors = ['red', 'blue', 'green', 'purple', 'orange']
+    for idx, match in matches.iterrows():
+        future_prices = calculate_future_prices(recent_price, match['future_changes'])
+        
+        for i, price in enumerate(future_prices):
+            color = colors[idx % len(colors)]
+            ax.axhline(y=price, 
+                      color=color, 
+                      linestyle='--', 
+                      alpha=0.5,
+                      label=f'Match {idx+1} Day {i+1}' if i == 0 else "")
+    
+    ax.set_title('Bitcoin Price with Pattern-Based Predictions', pad=20)
     ax.set_xlabel('Date')
-    ax.set_ylabel('Price')
-    ax.legend()
+    ax.set_ylabel('Price (USD)')
+    ax.grid(True, linestyle='--', alpha=0.3)
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.tight_layout()
+    
     return fig
 
-# Main function to control Streamlit app
 def main():
-    st.title("Bitcoin Price Pattern Matcher")
+    st.title("Bitcoin Pattern Matcher")
     
-    # Restrict interval options
-    interval = st.selectbox("Select Interval", ["1h", "1d"])
+    # Sidebar controls
+    st.sidebar.header("Settings")
+    interval = st.sidebar.selectbox("Select Interval", ["1h", "1d"])
+    pattern_length = st.sidebar.slider("Pattern Length", 3, 10, 5)
+    lookforward = st.sidebar.slider("Prediction Days", 1, 10, 5)
+    
+    # Fetch data
     data = fetch_bitcoin_data(interval)
-
-    # Extract recent pattern
-    current_pattern_length = 5
-    recent_data = data.iloc[-current_pattern_length:]
+    recent_data = data.tail(pattern_length)
     current_pattern = convert_to_pattern(recent_data['Change'])
     
-    st.write("### Current Pattern and Prices")
-    st.write(f"Pattern: {current_pattern}")
-    st.table(recent_data[['Close', 'Change']])
-
-    # Find matching patterns
-    matches = find_matching_patterns(data, current_pattern)
-
-    if not matches.empty:
-        st.write("### Matched Patterns")
-        st.write(matches[['Close', 'Pattern']])
-
-        # Plot matching patterns with horizontal lines
-        st.write("### Chart with Matching Patterns")
-        fig = plot_with_overlays(data.tail(200), matches, current_pattern_length)
-        st.pyplot(fig)
-    else:
-        st.write("No matching patterns found.")
+    # Create tabs
+    tab1, tab2 = st.tabs(["Chart View", "Detailed Data"])
+    
+    with tab1:
+        # Display current pattern
+        st.markdown(f"**Current Pattern:** `{'→'.join(current_pattern)}`  (U = Up, D = Down)")
+        
+        # Find matches and display chart
+        matches = find_matching_patterns(data, current_pattern, lookforward)
+        
+        if not matches.empty:
+            st.markdown(f"**Found {len(matches)} matching patterns**")
+            
+            # Show patterns only
+            for idx, match in matches.iterrows():
+                st.markdown(f"Match {idx+1}: Future moves: `{'→'.join(match['future_pattern'])}`")
+            
+            # Plot with predictions
+            fig = plot_with_predictions(data.tail(200), matches, pattern_length, 
+                                      recent_data['Close'].iloc[-1], lookforward)
+            st.pyplot(fig)
+        else:
+            st.warning("No matching patterns found in historical data.")
+    
+    with tab2:
+        st.write("### Recent Prices")
+        st.dataframe(recent_data[['Close', 'Change']].round(4))
+        
+        if not matches.empty:
+            st.write("### Pattern Matches Details")
+            for idx, match in matches.iterrows():
+                st.write(f"**Match {idx+1}** (Found at: {match['match_date'].strftime('%Y-%m-%d')})")
+                future_prices = calculate_future_prices(recent_data['Close'].iloc[-1], match['future_changes'])
+                price_df = pd.DataFrame({
+                    'Day': range(1, len(future_prices) + 1),
+                    'Predicted Price': future_prices,
+                    'Change %': [x * 100 for x in match['future_changes']]
+                }).round(2)
+                st.dataframe(price_df)
 
 if __name__ == "__main__":
     main()
