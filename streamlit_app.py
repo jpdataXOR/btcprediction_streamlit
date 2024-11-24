@@ -3,19 +3,11 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import datetime
 
-# Function to fetch Bitcoin data with interval and range handling
+# Function to fetch Bitcoin data
 def fetch_bitcoin_data(interval):
     btc = yf.Ticker("BTC-USD")
-    # Handle intraday interval limit (730 days)
-    if interval in ["1h", "30m", "15m", "5m", "1m"]:
-        end_date = datetime.datetime.now()
-        start_date = end_date - datetime.timedelta(days=730)
-        data = btc.history(start=start_date, end=end_date, interval=interval)
-    else:
-        data = btc.history(period="max", interval=interval)
-    
+    data = btc.history(period="max", interval=interval)
     data['Change'] = data['Close'].pct_change()
     return data
 
@@ -37,16 +29,16 @@ def find_matching_patterns(data, current_pattern):
     matches = data.dropna(subset=['Pattern'])
     return matches
 
-# Function to plot the chart in black and white
 # Function to plot the chart in black and white with horizontal overlays
 def plot_with_overlays(data, matches, current_pattern_length):
     fig, ax = plt.subplots(figsize=(14, 7))
     ax.plot(data['Close'], label='Current Price', color='black')
 
-    # Draw horizontal lines for future prices based on matching patterns
+    # Ensure there are enough data points before attempting to plot horizontal lines
     for match_date in matches.index:
-        future_price = data['Close'].iloc[matches.index.get_loc(match_date)]
-        ax.axhline(y=future_price, linestyle='--', color='gray', linewidth=0.8)
+        if match_date in data.index:  # Ensure the match date is within the range of data
+            future_price = data['Close'].loc[match_date]
+            ax.axhline(y=future_price, linestyle='--', color='gray', linewidth=0.8)
 
     ax.set_title('Bitcoin Price Chart with Matching Patterns (Horizontal Lines)')
     ax.set_xlabel('Date')
@@ -60,36 +52,30 @@ def main():
     
     # Restrict interval options
     interval = st.selectbox("Select Interval", ["1h", "1d"])
-    st.write(f"Fetching data for interval: {interval}")
+    data = fetch_bitcoin_data(interval)
+
+    # Extract recent pattern
+    current_pattern_length = 5
+    recent_data = data.iloc[-current_pattern_length:]
+    current_pattern = convert_to_pattern(recent_data['Change'])
     
-    try:
-        data = fetch_bitcoin_data(interval)
+    st.write("### Current Pattern and Prices")
+    st.write(f"Pattern: {current_pattern}")
+    st.table(recent_data[['Close', 'Change']])
 
-        # Extract recent pattern
-        current_pattern_length = 5
-        recent_data = data.iloc[-current_pattern_length:]
-        current_pattern = convert_to_pattern(recent_data['Change'])
-        
-        st.write("### Current Pattern and Prices")
-        st.write(f"Pattern: {current_pattern}")
-        st.table(recent_data[['Close', 'Change']])
+    # Find matching patterns
+    matches = find_matching_patterns(data, current_pattern)
 
-        # Find matching patterns
-        matches = find_matching_patterns(data, current_pattern)
+    if not matches.empty:
+        st.write("### Matched Patterns")
+        st.write(matches[['Close', 'Pattern']])
 
-        if not matches.empty:
-            st.write("### Matched Patterns")
-            st.write(matches[['Close', 'Pattern']])
-
-            # Plot matching patterns
-            st.write("### Chart with Matching Patterns")
-            fig = plot_with_overlays(data.tail(200), matches, current_pattern_length)
-            st.pyplot(fig)
-        else:
-            st.write("No matching patterns found.")
-
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+        # Plot matching patterns with horizontal lines
+        st.write("### Chart with Matching Patterns")
+        fig = plot_with_overlays(data.tail(200), matches, current_pattern_length)
+        st.pyplot(fig)
+    else:
+        st.write("No matching patterns found.")
 
 if __name__ == "__main__":
     main()
