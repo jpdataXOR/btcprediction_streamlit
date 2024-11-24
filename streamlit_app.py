@@ -51,14 +51,16 @@ def calculate_future_prices(recent_price, future_changes):
         future_prices.append(current_price)
     
     return future_prices
+
+
 def plot_with_predictions(data, matches, current_pattern_length, recent_price, lookforward=5):
     fig, ax = plt.subplots(figsize=(15, 8))
     
     # Plot main price line in thick black
     ax.plot(data['Close'], label='Bitcoin Price', color='black', linewidth=2)
     
-    # Add horizontal red line at current price
-    ax.axhline(y=recent_price, color='red', linestyle='-', linewidth=1)
+    # Add horizontal red line at current price - made thicker and more opaque
+    ax.axhline(y=recent_price, color='red', linestyle='-', linewidth=2, alpha=0.8, label='Current Price')
     
     # Calculate and plot future price levels for each match
     for idx, match in matches.iterrows():
@@ -76,10 +78,12 @@ def plot_with_predictions(data, matches, current_pattern_length, recent_price, l
     ax.set_xlabel('Date')
     ax.set_ylabel('Price (USD)')
     ax.grid(True, linestyle='--', alpha=0.3)
+    ax.legend()  # Added legend to show current price line
     plt.tight_layout()
     
     return fig
 
+    
 def main():
     st.title("Bitcoin Pattern Matcher")
     
