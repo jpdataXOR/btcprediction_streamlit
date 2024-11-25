@@ -71,7 +71,7 @@ def plot_with_predictions(data, matches, current_pattern_length, recent_price, l
             ax.axhline(y=price, 
                       color='lightblue', 
                       linestyle='-', 
-                      linewidth=0.1, 
+                      linewidth=0.2, 
                       alpha=0.3)
     
     ax.set_title('Bitcoin Price with Pattern-Based Predictions', pad=20)
